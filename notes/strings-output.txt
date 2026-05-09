@@ -1,0 +1,143 @@
+# Curated strings extraction for Canon DR-C225W II network protocol analysis
+
+The original broad strings sweep produced many signing and certificate strings.
+This file keeps only protocol-relevant strings from the candidate binaries.
+
+## DRNetworkScanner.bundle/Contents/MacOS/DRNetworkScanner
+
+Binary:
+`extracted/mac-v2.2/DR-C225 Driver.pkg/Payload/Library/Image Capture/TWAIN Data Sources/DRC225.ds/Contents/Frameworks/DRNetworkScanner.bundle/Contents/MacOS/DRNetworkScanner`
+
+```text
+CBaseScanner
+CNetworkScanner
+DRURLConnection
+initWithAddress:port:
+toAscii:size:
+getMacAddress
+request:size:param:paramSize:recv:noDataTimeout:completionTimeout:
+ipAddress
+port
+scanData
+setScanData:
+%@://%@/cgi-bin/cgiscsi
+https
+http
+POST
+*/*
+Accept
+application/x-www-form-urlencoded
+Content-type
+c=
+&i&dl=%d
+&o&d=%@&dl=%d
+&a=%@
+Content-length
+requestWithURL:cachePolicy:timeoutInterval:
+setHTTPMethod:
+setValue:forHTTPHeaderField:
+setHTTPBody:
+dataTaskWithRequest:completionHandler:
+ephemeralSessionConfiguration
+sessionWithConfiguration:
+statusCode
+NSURLErrorDomain
+```
+
+## DRC225.ds/Contents/MacOS/DRC225
+
+Binary:
+`extracted/mac-v2.2/DR-C225 Driver.pkg/Payload/Library/Image Capture/TWAIN Data Sources/DRC225.ds/Contents/MacOS/DRC225`
+
+```text
+CCanoDR::DecodeSense:err=%08x
+ERROR:  ExecTestUnitReady:err=%08x
+ExecRequestSense:err=%08x, *outSenseData=%08x
+ERROR:  ExecInquiry:err=%08x
+ExecInquiryEx: otherFunction = %d
+ERROR:  ExecInquiryEx:err=%08x
+ERROR:  ExecReserveUnit:err=%08x
+ERROR:  ExecReleaseUnit:err=%08x
+ERROR:  ExecSetWindow:err=%08x
+ERROR:  ExecGetWindow:err=%08x
+ERROR:  ExecScan:err=%08x
+ERROR:  ExecRead:err=%x(cmd.payload[2]=%04x)
+ERROR:  ExecSend:err=%x(cmd.payload[2]=%04x)
+ERROR:  ExecDefineScanMode:err=%08x
+ERROR:  ExecObjectPosition:err=%08x
+ERROR:  ExecStopBatch:err=%08x
+ERROR:  ExecGetScannerStatus:err=%08x
+ERROR:  ExecSetAdjustData:err=%08x
+ERROR:  ExecGetMemory:err=%08x
+ERROR:  ExecErrorClear:err=%08x
+DRUSBScanner.bundle
+DRNetworkScanner.bundle
+CreateScannerList
+CreateScanner
+ReleaseScanner
+ReleaseScannerList
+```
+
+## Nearby installer/tool strings
+
+The macOS package also contains setup and web-scan helper binaries. They were
+less useful than `DRNetworkScanner`, but strings confirmed Canon's network path
+is isolated in the scanner framework rather than obvious command-line tooling.
+
+```text
+WebScanSettingTool
+scanserver_httpd
+http://%@
+Access-Control-Allow-Origin
+lighttpd
+```
+
+## Windows Network Monitor / Connection Utility
+
+Downloaded artifact:
+`downloads/DR-C225W_II_NWMonitorV1.3.0.0_WCSetupToolV.1.3.0.0_forWindows.zip`
+
+Extracted files:
+
+```text
+DRC225W/Setup.exe
+DRC225W/Setup.ini
+DRC225W/NetworkMonitor/setup.exe
+```
+
+`Setup.ini` identifies the large nested installer as the NetworkMonitor target:
+
+```text
+[General]
+TargetDir=NetworkMonitor
+TargetName=Setup.exe
+
+[PreInstall]
+UninstallMSIProductID={B7D7A443-ACD2-4D83-BE18-9CE42BF9465F}
+```
+
+Curated strings from `DRC225W/NetworkMonitor/setup.exe` showed an InstallShield
+bootstrapper and signing/certificate material, but no scanner protocol strings:
+
+```text
+RunISMSISetup
+RunISMSIMajorUpgradeRemoval
+ISSetup.dll
+ISSetupStream
+C:\CodeBases\isdev\src\Runtime\MSI\Shared\Setup\Setup___Win32_Release_Prerequisites_Unicode\setupPreReq.pdb
+InternetQueryDataAvailable
+InternetCanonicalizeUrlW
+```
+
+Negative protocol sweep for the network-tool bootstrapper:
+
+```text
+cgiscsi: not found
+cgi-bin: not found
+POST / scan SCSI command templates: not found
+SetWindow / Inquiry / RequestSense command strings: not found
+```
+
+PE resource enumeration found installer UI resources only. The large payload is
+an `ISSetupStream` overlay beginning at file offset `0x165a00`, with a visible
+UTF-16 record name `0x0410.ini` followed by high-entropy data. It was not run.

@@ -1,0 +1,158 @@
+extracted/mac-v2.2/DR-C225 Driver.pkg/Payload/Library/Image Capture/TWAIN Data Sources/DRC225.ds/Contents/Frameworks/DRNetworkScanner.bundle/Contents/MacOS/DRNetworkScanner:
+Contents of (__DATA,__objc_classlist) section
+0000000000003438 0x3860 _OBJC_CLASS_$_DRURLConnection
+    isa        0x3888 _OBJC_METACLASS_$_DRURLConnection
+    superclass 0x0 _OBJC_CLASS_$_NSObject
+    cache      0x0 __objc_empty_cache
+    vtable     0x0
+    data       0x3658
+        flags          0x0
+        instanceStart  8
+        instanceSize   32
+        reserved       0x0
+        ivarLayout     0x0
+        name           0x2dc9 DRURLConnection
+        baseMethods    0x3490
+            entsize 24
+            count   12
+            name    0x2baa initWithAddress:port:
+            types   0x2dd9 @28@0:8@16I24
+            imp     0x1520 -[DRURLConnection initWithAddress:port:]
+            name    0x29a6 dealloc
+            types   0x2de7 v16@0:8
+            imp     0x1591 -[DRURLConnection dealloc]
+            name    0x2a87 toAscii:size:
+            types   0x2def @28@0:8r^v16I24
+            imp     0x15da -[DRURLConnection toAscii:size:]
+            name    0x2bc0 clear
+            types   0x2de7 v16@0:8
+            imp     0x166b -[DRURLConnection clear]
+            name    0x2aa3 getMacAddress
+            types   0x2dff @16@0:8
+            imp     0x167f -[DRURLConnection getMacAddress]
+            name    0x2bc6 request:size:param:paramSize:recv:noDataTimeout:completionTimeout:
+            types   0x2e07 @52@0:8^v16I24^v28I36I40I44I48
+            imp     0x179e -[DRURLConnection request:size:param:paramSize:recv:noDataTimeout:completionTimeout:]
+            name    0x2a04 ipAddress
+            types   0x2dff @16@0:8
+            imp     0x1de2 -[DRURLConnection ipAddress]
+            name    0x2c09 setIpAddress:
+            types   0x2e26 v24@0:8@16
+            imp     0x1df3 -[DRURLConnection setIpAddress:]
+            name    0x29ff port
+            types   0x2e31 S16@0:8
+            imp     0x1e04 -[DRURLConnection port]
+            name    0x2c17 setPort:
+            types   0x2e39 v20@0:8S16
+            imp     0x1e15 -[DRURLConnection setPort:]
+            name    0x2c20 scanData
+            types   0x2dff @16@0:8
+            imp     0x1e26 -[DRURLConnection scanData]
+            name    0x29e0 setScanData:
+            types   0x2e26 v24@0:8@16
+            imp     0x1e37 -[DRURLConnection setScanData:]
+        baseProtocols  0x0
+        ivars          0x35b8
+            entsize   32
+            count     3
+            offset    0x3848 _OBJC_IVAR_$_DRURLConnection._ipAddress 8
+            name      0x2c29 _ipAddress
+            type      0x2e44 @"NSString"
+            alignment 3
+            size      8
+            offset    0x3850 _OBJC_IVAR_$_DRURLConnection._port 16
+            name      0x2c34 _port
+            type      0x2e50 S
+            alignment 1
+            size      2
+            offset    0x3858 _OBJC_IVAR_$_DRURLConnection._scanData 24
+            name      0x2c3a _scanData
+            type      0x2e52 @"NSData"
+            alignment 3
+            size      8
+        weakIvarLayout 0x0
+        baseProperties 0x3620
+            entsize    16
+            count      3
+            name       0x2d6e ipAddress
+            attributes 0x2d78 T@"NSString",&,N,V_ipAddress
+            name       0x2d95 port
+            attributes 0x2d9a TS,N,V_port
+            name       0x2da6 scanData
+            attributes 0x2daf T@"NSData",&,N,V_scanData
+Meta Class
+    isa        0x0 _OBJC_METACLASS_$_NSObject
+    superclass 0x0 _OBJC_METACLASS_$_NSObject
+    cache      0x0 __objc_empty_cache
+    vtable     0x0
+    data       0x3448
+        flags          0x1 RO_META
+        instanceStart  40
+        instanceSize   40
+        reserved       0x0
+        ivarLayout     0x0
+        name           0x2dc9 DRURLConnection
+        baseMethods    0x0
+        baseProtocols  0x0
+        ivars          0x0
+        weakIvarLayout 0x0
+        baseProperties 0x0
+Contents of (__DATA,__objc_classrefs) section
+00000000000037f8 0x0 _OBJC_CLASS_$_NSMutableString
+0000000000003800 0x0 _OBJC_CLASS_$_NSString
+0000000000003808 0x0 _OBJC_CLASS_$_NSMutableURLRequest
+0000000000003810 0x0 _OBJC_CLASS_$_NSURL
+0000000000003818 0x0 _OBJC_CLASS_$_NSURLSessionConfiguration
+0000000000003820 0x0 _OBJC_CLASS_$_NSURLSession
+0000000000003828 0x0 _OBJC_CLASS_$_NSError
+0000000000003830 0x3860 _OBJC_CLASS_$_DRURLConnection
+0000000000003838 0x0 _OBJC_CLASS_$_NSData
+Contents of (__DATA,__objc_superrefs) section
+0000000000003840 0x3860 _OBJC_CLASS_$_DRURLConnection
+Contents of (__DATA,__objc_selrefs) section
+    0x2992 init
+    0x2997 retain
+    0x299e release
+    0x29a6 dealloc
+    0x29ae alloc
+    0x29b4 initWithCapacity:
+    0x29c6 appendFormat:
+    0x29d4 autorelease
+    0x29e0 setScanData:
+    0x29ed stringWithFormat:
+    0x29ff port
+    0x2a04 ipAddress
+    0x2a0e URLWithString:
+    0x2a1d requestWithURL:cachePolicy:timeoutInterval:
+    0x2a49 setHTTPMethod:
+    0x2a58 setValue:forHTTPHeaderField:
+    0x2a75 string
+    0x2a7c setString:
+    0x2a87 toAscii:size:
+    0x2a95 appendString:
+    0x2aa3 getMacAddress
+    0x2ab1 length
+    0x2ab8 dataUsingEncoding:
+    0x2acb setHTTPBody:
+    0x2ad8 ephemeralSessionConfiguration
+    0x2af6 sessionWithConfiguration:
+    0x2b10 invalidateAndCancel
+    0x2b24 finishTasksAndInvalidate
+    0x2b3d statusCode
+    0x2b48 dataTaskWithRequest:completionHandler:
+    0x2b6f resume
+    0x2b76 domain
+    0x2b7d code
+    0x2b82 userInfo
+    0x2b8b errorWithDomain:code:userInfo:
+    0x2c44 initWithUTF8String:
+    0x2baa initWithAddress:port:
+    0x2c58 isEqualToString:
+    0x2c69 bytes
+    0x2bc6 request:size:param:paramSize:recv:noDataTimeout:completionTimeout:
+    0x2c20 scanData
+    0x2bc0 clear
+    0x2c6f dataWithBytes:length:
+Contents of (__DATA,__objc_imageinfo) section
+    version 0
+    flags   0x40

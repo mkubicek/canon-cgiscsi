@@ -1,0 +1,35 @@
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Canon copyrighted driver artifacts. Keep references and hashes in references.md.
+downloads/
+extracted/
+
+# Third-party source/cache snapshots. Link upstream instead of vendoring.
+references-cache/
+
+# Raw proprietary binary analysis output. Publish clean-room summaries instead.
+notes/drc225-disassembly.txt
+
+# Local scanner captures may contain personal documents and OCR text.
+harness/captures/
+harness/tessdata/
+
+# Scratch and generated outputs.
+tmp/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.bin
