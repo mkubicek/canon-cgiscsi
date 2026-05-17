@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 from .canon_backend import CanonCgiscsiBackend
 from .config import AdapterConfig
+from .config import ScannerConfig
 from .escl_models import (
     UnsupportedScanSetting,
     error_xml,
@@ -65,13 +66,20 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/healthz":
             active_job = self.server.manager.active_job_id
+            backend_state = "processing" if active_job else "idle"
+            backend_error = None
+            safe_health = getattr(self.server.manager.backend, "safe_health", None)
+            if callable(safe_health) and active_job is None:
+                health = safe_health()
+                backend_state = health.state
+                backend_error = health.message
             self._send_json(
                 {
                     "adapter": "ok",
-                    "backend": "processing" if active_job else "idle",
+                    "backend": backend_state,
                     "scanner_host": self.server.config.scanner.host,
                     "active_job": active_job,
-                    "last_error": None,
+                    "last_error": backend_error,
                 }
             )
             return
@@ -277,14 +285,26 @@ def make_server(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Canon cgiscsi AirScan/eSCL adapter")
     parser.add_argument("--config", help="TOML config path")
+    parser.add_argument("--host", help="explicit Canon cgiscsi scanner host or host:port")
     parser.add_argument("--bind")
     parser.add_argument("--port", type=int)
     parser.add_argument("--mock", action="store_true", help="force deterministic mock backend")
     parser.add_argument("--live", action="store_true", help="enable live Canon backend from explicit config/env")
+    parser.add_argument(
+        "--allow-live-scans",
+        action="store_true",
+        help="with --live, allow paper-motion ScanJobs; host must still be explicit",
+    )
     parser.add_argument("--mdns", action="store_true", help="publish _uscan._tcp with conservative TXT records")
     args = parser.parse_args(argv)
 
     config = AdapterConfig.load(args.config)
+    if args.host or args.allow_live_scans:
+        config = override_live_config(
+            config,
+            host=args.host,
+            allow_live_scans=args.allow_live_scans,
+        )
     bind = args.bind or config.escl.bind
     port = args.port if args.port is not None else config.escl.port
     if args.live and not args.mock:
@@ -312,6 +332,29 @@ def main(argv: list[str] | None = None) -> int:
             publisher.stop()
         server.server_close()
     return 0
+
+
+def override_live_config(
+    config: AdapterConfig,
+    *,
+    host: str | None = None,
+    allow_live_scans: bool = False,
+) -> AdapterConfig:
+    scanner = ScannerConfig(
+        host=host or config.scanner.host,
+        scheme=config.scanner.scheme,
+        timeout_seconds=config.scanner.timeout_seconds,
+        safe_mode=False if allow_live_scans else config.scanner.safe_mode,
+        allow_live_scans=True if allow_live_scans else config.scanner.allow_live_scans,
+        model_name=config.scanner.model_name,
+    )
+    return AdapterConfig(
+        scanner=scanner,
+        escl=config.escl,
+        scan_defaults=config.scan_defaults,
+        ocr=config.ocr,
+        paths=config.paths,
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

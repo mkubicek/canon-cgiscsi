@@ -64,6 +64,21 @@ class AirscanServerTests(unittest.TestCase):
             self.assertIn("Idle", body.decode("utf-8"))
             ET.fromstring(body)
 
+    def test_healthz_uses_backend_safe_health_when_available(self):
+        class BackendWithHealth(MockCanonBackend):
+            def safe_health(self):
+                class Health:
+                    state = "idle"
+                    message = None
+
+                return Health()
+
+        with running_server(BackendWithHealth()) as base:
+            status, headers, body = request(f"{base}/healthz")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "application/json")
+        self.assertIn(b'"backend": "idle"', body)
+
     def test_full_scan_job_flow_over_http(self):
         backend = MockCanonBackend(pages=[ScannedPage(1, image_bytes=b"jpeg-1"), ScannedPage(2, image_bytes=b"jpeg-2")])
         with running_server(backend) as base:

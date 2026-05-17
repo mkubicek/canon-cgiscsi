@@ -25,5 +25,13 @@ python -m airscan_adapter.server --bind 127.0.0.1 --port 8080 --mock
 
 Live scans require a TOML config with `scanner.safe_mode = false` and
 `scanner.allow_live_scans = true`, plus `scanner.host` or
-`CANON_CGISCSI_HOST`. The adapter does not use Canon GUI apps, installers, Wine,
-or vendor executables.
+`CANON_CGISCSI_HOST`. For one-off live validation, pass the host and explicit
+live-scan acknowledgement on the command line:
+
+```sh
+python -m airscan_adapter.server --live --host <scanner-host-or-ip> \
+  --allow-live-scans --bind 127.0.0.1 --port 8080
+```
+
+The adapter does not use Canon GUI apps, installers, Wine, or vendor
+executables.

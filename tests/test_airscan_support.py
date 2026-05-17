@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from airscan_adapter.canon_backend import CanonCgiscsiBackend
 from airscan_adapter.config import (
+    AdapterConfig,
     OcrConfig,
     PathConfig,
     ScannerConfig,
@@ -14,6 +15,7 @@ from airscan_adapter.config import (
 from airscan_adapter.mdns import uscan_txt_records
 from airscan_adapter.mock_canon_backend import ScannedPage
 from airscan_adapter.ocr import OcrInboxWriter, copy_ocr_runner, copy_pdf_converter
+from airscan_adapter.server import override_live_config
 
 
 class ConfigAndBackendTests(unittest.TestCase):
@@ -40,6 +42,16 @@ class ConfigAndBackendTests(unittest.TestCase):
                     allow_live_scans=False,
                 )
             )
+
+    def test_live_cli_override_keeps_host_explicit(self):
+        config = override_live_config(
+            AdapterConfig(),
+            host="scanner.local",
+            allow_live_scans=True,
+        )
+        self.assertEqual(config.scanner.host, "scanner.local")
+        self.assertFalse(config.scanner.safe_mode)
+        self.assertTrue(config.scanner.allow_live_scans)
 
 
 class MdnsTests(unittest.TestCase):

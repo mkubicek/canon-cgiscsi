@@ -8,7 +8,8 @@ docker run --rm --network host \
   -e CANON_CGISCSI_HOST=<scanner-host> \
   -v "$HOME/Scans:/scans" \
   canon-cgiscsi-airscan \
-  python -m airscan_adapter.server --live --mdns --bind 0.0.0.0 --port 8080
+  python -m airscan_adapter.server --live --allow-live-scans --mdns \
+    --bind 0.0.0.0 --port 8080
 ```
 
 Use a config file or `CANON_CGISCSI_HOST`; do not bake a private LAN address
