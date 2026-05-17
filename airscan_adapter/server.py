@@ -10,8 +10,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from .canon_backend import CanonCgiscsiBackend
-from .config import AdapterConfig
-from .config import ScannerConfig
+from .config import AdapterConfig, EsclConfig, ScannerConfig
 from .escl_models import (
     UnsupportedScanSetting,
     error_xml,
@@ -307,6 +306,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     bind = args.bind or config.escl.bind
     port = args.port if args.port is not None else config.escl.port
+    config = override_escl_endpoint(config, bind=bind, port=port)
     if args.live and not args.mock:
         backend = CanonCgiscsiBackend(config.scanner, config.scan_defaults)
     else:
@@ -351,6 +351,29 @@ def override_live_config(
     return AdapterConfig(
         scanner=scanner,
         escl=config.escl,
+        scan_defaults=config.scan_defaults,
+        ocr=config.ocr,
+        paths=config.paths,
+    )
+
+
+def override_escl_endpoint(config: AdapterConfig, *, bind: str, port: int) -> AdapterConfig:
+    host_for_url = "127.0.0.1" if bind in {"0.0.0.0", "::"} else bind
+    default_admin_url = "http://127.0.0.1:8080/admin"
+    admin_url = config.escl.admin_url
+    if admin_url == default_admin_url:
+        admin_url = f"http://{host_for_url}:{port}/admin"
+    escl = EsclConfig(
+        bind=bind,
+        port=port,
+        service_name=config.escl.service_name,
+        uuid=config.escl.uuid,
+        admin_url=admin_url,
+        root_resource=config.escl.root_resource,
+    )
+    return AdapterConfig(
+        scanner=config.scanner,
+        escl=escl,
         scan_defaults=config.scan_defaults,
         ocr=config.ocr,
         paths=config.paths,

@@ -42,7 +42,7 @@ class CanonCgiscsiBackend:
         self._current_client = None
 
     def safe_health(self) -> BackendHealth:
-        cgiscsi, commands, _scan_to_pdf = _import_harness_modules()
+        cgiscsi, commands = _import_cgiscsi_modules()
         client = cgiscsi.CgiscsiClient(
             self.scanner.host,
             scheme=self.scanner.scheme,
@@ -119,12 +119,18 @@ class CanonCgiscsiBackend:
 
 
 def _import_harness_modules():
+    cgiscsi, commands = _import_cgiscsi_modules()
+    import scan_to_pdf
+
+    return cgiscsi, commands, scan_to_pdf
+
+
+def _import_cgiscsi_modules():
     repo_root = Path(__file__).resolve().parents[1]
     harness_dir = repo_root / "harness"
     if str(harness_dir) not in sys.path:
         sys.path.insert(0, str(harness_dir))
     import cgiscsi
     import commands
-    import scan_to_pdf
 
-    return cgiscsi, commands, scan_to_pdf
+    return cgiscsi, commands

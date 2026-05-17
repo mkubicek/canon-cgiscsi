@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+import urllib.request
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,7 +16,7 @@ from airscan_adapter.config import (
 from airscan_adapter.mdns import uscan_txt_records
 from airscan_adapter.mock_canon_backend import ScannedPage
 from airscan_adapter.ocr import OcrInboxWriter, copy_ocr_runner, copy_pdf_converter
-from airscan_adapter.server import override_live_config
+from airscan_adapter.server import override_escl_endpoint, override_live_config
 
 
 class ConfigAndBackendTests(unittest.TestCase):
@@ -52,6 +53,37 @@ class ConfigAndBackendTests(unittest.TestCase):
         self.assertEqual(config.scanner.host, "scanner.local")
         self.assertFalse(config.scanner.safe_mode)
         self.assertTrue(config.scanner.allow_live_scans)
+
+    def test_cli_endpoint_override_updates_advertised_port(self):
+        config = override_escl_endpoint(AdapterConfig(), bind="127.0.0.1", port=18082)
+        self.assertEqual(config.escl.port, 18082)
+        self.assertEqual(config.escl.admin_url, "http://127.0.0.1:18082/admin")
+
+    def test_safe_health_does_not_require_scan_pdf_dependencies(self):
+        class Response:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return None
+
+            def read(self):
+                return bytes(18)
+
+        backend = CanonCgiscsiBackend(
+            ScannerConfig(
+                host="scanner.local",
+                timeout_seconds=1.0,
+                safe_mode=False,
+                allow_live_scans=True,
+            )
+        )
+        with patch.object(urllib.request, "urlopen", return_value=Response()):
+            health = backend.safe_health()
+        self.assertTrue(health.ok)
+        self.assertEqual(health.state, "idle")
 
 
 class MdnsTests(unittest.TestCase):
