@@ -148,6 +148,7 @@ def scanner_status_xml(
     state: str = "Idle",
     adf_state: str | None = "ScannerAdfLoaded",
     reason: str | None = None,
+    jobs: list[dict[str, object]] | None = None,
 ) -> bytes:
     root = ET.Element(qname(NS_SCAN, "ScannerStatus"))
     _add_text(root, NS_PWG, "Version", "2.1")
@@ -156,6 +157,17 @@ def scanner_status_xml(
         _add_text(root, NS_SCAN, "AdfState", adf_state)
     if reason:
         _add_text(root, NS_SCAN, "StateReason", reason)
+    if jobs:
+        jobs_elem = ET.SubElement(root, qname(NS_SCAN, "Jobs"))
+        for job in jobs:
+            info = ET.SubElement(jobs_elem, qname(NS_SCAN, "JobInfo"))
+            _add_text(info, NS_PWG, "JobUri", str(job.get("uri", "")))
+            _add_text(info, NS_PWG, "JobUuid", str(job.get("uuid", "")))
+            _add_text(info, NS_PWG, "JobState", str(job.get("state", "Processing")))
+            _add_text(info, NS_PWG, "ImagesToTransfer", int(job.get("images_to_transfer", 0)))
+            _add_text(info, NS_PWG, "ImagesCompleted", int(job.get("images_completed", 0)))
+            reasons = ET.SubElement(info, qname(NS_PWG, "JobStateReasons"))
+            _add_text(reasons, NS_PWG, "JobStateReason", str(job.get("reason", "Processing")))
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 

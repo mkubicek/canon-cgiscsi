@@ -175,6 +175,27 @@ class AirscanJobManager:
             job.condition.notify_all()
         self._clear_active_if(job_id)
 
+
+    def status_jobs(self) -> list[dict[str, object]]:
+        snapshots: list[dict[str, object]] = []
+        with self._lock:
+            jobs = list(self._jobs.values())
+        for job in jobs:
+            with job.condition:
+                if job.deleted:
+                    continue
+                state = "Completed" if job.state == JobState.COMPLETED else ("Canceled" if job.state == JobState.CANCELED else ("Aborted" if job.state == JobState.FAILED else "Processing"))
+                reason = "JobCompletedSuccessfully" if job.state == JobState.COMPLETED else ("JobCanceledByUser" if job.state == JobState.CANCELED else ("JobAbortedBySystem" if job.state == JobState.FAILED else "Processing"))
+                snapshots.append({
+                    "uri": self.job_location(job),
+                    "uuid": job.job_id,
+                    "state": state,
+                    "images_to_transfer": len(job.pages),
+                    "images_completed": len(job.retained_pages),
+                    "reason": reason,
+                })
+        return snapshots
+
     def wait_for_job(self, job_id: str, timeout: float = 2.0) -> JobState:
         job = self.get_job(job_id)
         if job.worker is not None:

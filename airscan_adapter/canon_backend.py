@@ -38,6 +38,9 @@ class CanonCgiscsiBackend:
         if self.scanner.safe_mode or not self.scanner.allow_live_scans:
             raise ValueError("live Canon backend requires safe_mode=false and allow_live_scans=true")
         self.defaults = defaults or ScanDefaults()
+        self.rotate_degrees = int(os.environ.get("AIRSCAN_ROTATE_DEGREES", "180"))
+        if self.rotate_degrees not in {0, 90, 180, 270}:
+            raise ValueError("AIRSCAN_ROTATE_DEGREES must be one of: 0, 90, 180, 270")
         self._lock = threading.Lock()
         self._current_client = None
 
@@ -97,10 +100,14 @@ class CanonCgiscsiBackend:
                             if cancel_event.is_set():
                                 break
                             page_number += 1
-                            blank, _fraction = scan_to_pdf.is_blank_jpeg_page(path)
+                            output_path = path
+                            if self.rotate_degrees:
+                                output_path = path.with_name(f"{path.stem}-rotated-{self.rotate_degrees}.jpg")
+                                scan_to_pdf.write_output_jpeg(path, output_path, rotate_degrees=self.rotate_degrees)
+                            blank, _fraction = scan_to_pdf.is_blank_jpeg_page(output_path)
                             yield ScannedPage(
                                 page_number=page_number,
-                                image_bytes=path.read_bytes(),
+                                image_bytes=output_path.read_bytes(),
                                 is_blank=blank,
                                 sheet_number=sheet,
                                 side="front" if side_index == 0 else "back",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import socket
 from dataclasses import dataclass
 
@@ -54,10 +55,12 @@ class MdnsPublisher:
             host = f"{host}.local."
         properties = uscan_txt_records(escl=self.escl, scanner=self.scanner)
         name = f"{self.escl.service_name}.{USCAN_SERVICE_TYPE}"
+        advertise_ip = os.environ.get("AIRSCAN_ADVERTISE_IP")
+        addresses = [socket.inet_aton(advertise_ip)] if advertise_ip else []
         info = ServiceInfo(
             USCAN_SERVICE_TYPE,
             name,
-            addresses=[],
+            addresses=addresses,
             port=self.escl.port,
             properties=properties,
             server=host,

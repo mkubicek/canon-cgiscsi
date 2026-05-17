@@ -61,7 +61,7 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
             return
         if path == "/eSCL/ScannerStatus":
             state, adf_state = self.server.manager.scanner_state()
-            self._send_xml(scanner_status_xml(state=state, adf_state=adf_state))
+            self._send_xml(scanner_status_xml(state=state, adf_state=adf_state, jobs=self.server.manager.status_jobs()))
             return
         if path == "/healthz":
             active_job = self.server.manager.active_job_id
@@ -102,6 +102,7 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length", "0"))
         body = self.rfile.read(length)
+        print(f"{self.client_address[0]} POST body: {body.decode('utf-8', 'replace')}", flush=True)
         try:
             job = self.server.manager.create_job(body)
         except UnsupportedScanSetting as exc:
@@ -136,7 +137,7 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
         self._send_bytes(b"", status=HTTPStatus.OK, content_type="text/plain")
 
     def log_message(self, format: str, *args: Any) -> None:
-        return
+        print(f"{self.client_address[0]} - {format % args}", flush=True)
 
     def _next_document(self, job_id: str) -> None:
         try:
