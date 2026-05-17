@@ -27,6 +27,10 @@ class ScannedPage:
     image_bytes: bytes = _ONE_PIXEL_JPEG
     mime_type: str = "image/jpeg"
     is_blank: bool = False
+    sheet_number: int | None = None
+    side: str | None = None
+    width_px: int | None = None
+    height_px: int | None = None
 
 
 class MockCanonBackend:
@@ -57,4 +61,3 @@ class MockCanonBackend:
             if cancel_event.is_set():
                 return
             yield page
-

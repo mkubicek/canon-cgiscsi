@@ -17,6 +17,7 @@ SCAN_SETTINGS = """\
   <scan:XResolution>300</scan:XResolution>
   <scan:YResolution>300</scan:YResolution>
   <scan:Sides>TwoSidedLongEdge</scan:Sides>
+  <scan:BlankPageDetectionAndRemoval>false</scan:BlankPageDetectionAndRemoval>
 </scan:ScanSettings>
 """
 
@@ -50,6 +51,7 @@ class EsclModelTests(unittest.TestCase):
         self.assertEqual(settings.x_resolution, 300)
         self.assertEqual(settings.y_resolution, 300)
         self.assertTrue(settings.duplex)
+        self.assertFalse(settings.blank_page_detection)
 
     def test_reject_unsupported_color_mode(self):
         xml = SCAN_SETTINGS.replace("Grayscale8", "RGB24")
@@ -72,4 +74,3 @@ class EsclModelTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

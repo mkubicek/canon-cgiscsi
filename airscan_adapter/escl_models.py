@@ -114,13 +114,15 @@ def scanner_capabilities_xml(
     """
 
     root = ET.Element(qname(NS_SCAN, "ScannerCapabilities"))
-    _add_text(root, NS_SCAN, "Version", "2.0")
+    _add_text(root, NS_PWG, "Version", "2.1")
     _add_text(root, NS_PWG, "MakeAndModel", model_name)
-    _add_text(root, NS_PWG, "UUID", uuid)
+    _add_text(root, NS_PWG, "Manufacturer", "Canon")
+    _add_text(root, NS_SCAN, "UUID", uuid)
     _add_text(root, NS_SCAN, "AdminURI", admin_uri)
 
+    adf = ET.SubElement(root, qname(NS_SCAN, "Adf"))
     for caps_name in ("AdfSimplexInputCaps", "AdfDuplexInputCaps"):
-        caps = ET.SubElement(root, qname(NS_SCAN, caps_name))
+        caps = ET.SubElement(adf, qname(NS_SCAN, caps_name))
         _add_text(caps, NS_SCAN, "MinWidth", 1)
         _add_text(caps, NS_SCAN, "MaxWidth", max_width)
         _add_text(caps, NS_SCAN, "MinHeight", 1)
@@ -129,10 +131,15 @@ def scanner_capabilities_xml(
 
         resolutions = ET.SubElement(caps, qname(NS_SCAN, "SettingProfiles"))
         profile = ET.SubElement(resolutions, qname(NS_SCAN, "SettingProfile"))
-        _add_text(profile, NS_SCAN, "ColorMode", "Grayscale8")
-        _add_text(profile, NS_SCAN, "DocumentFormat", "image/jpeg")
-        _add_text(profile, NS_SCAN, "XResolution", 300)
-        _add_text(profile, NS_SCAN, "YResolution", 300)
+        color_modes = ET.SubElement(profile, qname(NS_SCAN, "ColorModes"))
+        _add_text(color_modes, NS_SCAN, "ColorMode", "Grayscale8")
+        document_formats = ET.SubElement(profile, qname(NS_SCAN, "DocumentFormats"))
+        _add_text(document_formats, NS_PWG, "DocumentFormat", "image/jpeg")
+        supported_resolutions = ET.SubElement(profile, qname(NS_SCAN, "SupportedResolutions"))
+        discrete_resolutions = ET.SubElement(supported_resolutions, qname(NS_SCAN, "DiscreteResolutions"))
+        discrete_resolution = ET.SubElement(discrete_resolutions, qname(NS_SCAN, "DiscreteResolution"))
+        _add_text(discrete_resolution, NS_SCAN, "XResolution", 300)
+        _add_text(discrete_resolution, NS_SCAN, "YResolution", 300)
 
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
@@ -143,6 +150,7 @@ def scanner_status_xml(
     reason: str | None = None,
 ) -> bytes:
     root = ET.Element(qname(NS_SCAN, "ScannerStatus"))
+    _add_text(root, NS_PWG, "Version", "2.1")
     _add_text(root, NS_PWG, "State", state)
     if adf_state:
         _add_text(root, NS_SCAN, "AdfState", adf_state)
@@ -166,7 +174,7 @@ def scan_settings_from_xml(data: bytes | str) -> ScanSettings:
     if color_mode != "Grayscale8":
         raise UnsupportedScanSetting(f"unsupported color mode {color_mode!r}")
 
-    document_format = _first_text(root, "DocumentFormat") or "image/jpeg"
+    document_format = _first_text(root, "DocumentFormat", "DocumentFormatExt") or "image/jpeg"
     if document_format != "image/jpeg":
         raise UnsupportedScanSetting(f"unsupported document format {document_format!r}")
 
@@ -179,7 +187,10 @@ def scan_settings_from_xml(data: bytes | str) -> ScanSettings:
 
     duplex = _text_bool(_first_text(root, "Duplex"), True)
     duplex = _sides_to_duplex(_first_text(root, "Sides"), duplex)
-    blank_page_detection = _text_bool(_first_text(root, "BlankPageDetection"), True)
+    blank_page_detection = _text_bool(
+        _first_text(root, "BlankPageDetection", "BlankPageDetectionAndRemoval"),
+        True,
+    )
 
     region = ScanRegion(
         width=_first_int(root, "Width", ScanRegion.width),
@@ -187,6 +198,10 @@ def scan_settings_from_xml(data: bytes | str) -> ScanSettings:
         x_offset=_first_int(root, "XOffset", 0),
         y_offset=_first_int(root, "YOffset", 0),
     )
+    if region.width <= 0 or region.height <= 0:
+        raise UnsupportedScanSetting("scan region width and height must be positive")
+    if region.x_offset < 0 or region.y_offset < 0:
+        raise UnsupportedScanSetting("scan region offsets must be non-negative")
 
     return ScanSettings(
         input_source="Feeder",
@@ -199,3 +214,25 @@ def scan_settings_from_xml(data: bytes | str) -> ScanSettings:
         region=region,
     )
 
+
+def scan_image_info_xml(
+    *,
+    job_uri: str,
+    width: int = 2480,
+    height: int = 3508,
+    bytes_per_line: int | None = None,
+    blank_page_detected: bool = False,
+) -> bytes:
+    root = ET.Element(qname(NS_SCAN, "ScanImageInfo"))
+    _add_text(root, NS_SCAN, "JobUri", job_uri)
+    _add_text(root, NS_SCAN, "ActualWidth", width)
+    _add_text(root, NS_SCAN, "ActualHeight", height)
+    _add_text(root, NS_SCAN, "ActualBytesPerLine", bytes_per_line or width)
+    _add_text(root, NS_SCAN, "BlankPageDetected", str(blank_page_detected).lower())
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)
+
+
+def error_xml(message: str) -> bytes:
+    root = ET.Element(qname(NS_SCAN, "Error"))
+    _add_text(root, NS_SCAN, "Message", message)
+    return ET.tostring(root, encoding="utf-8", xml_declaration=True)

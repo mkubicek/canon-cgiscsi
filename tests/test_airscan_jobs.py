@@ -1,7 +1,7 @@
 import unittest
 
 from airscan_adapter.mock_canon_backend import MockCanonBackend, ScannedPage
-from airscan_adapter.server_skeleton import (
+from airscan_adapter.jobs import (
     AirscanJobManager,
     JobExhausted,
     JobState,
@@ -36,6 +36,7 @@ class AirscanJobTests(unittest.TestCase):
         self.assertEqual(manager.wait_for_job(job.job_id), JobState.COMPLETED)
         self.assertEqual(manager.next_document(job.job_id).page_number, 1)
         self.assertEqual(manager.next_document(job.job_id).page_number, 3)
+        self.assertEqual(manager.get_job(job.job_id).dropped_blank_pages, 1)
         with self.assertRaises(JobExhausted):
             manager.next_document(job.job_id)
 
@@ -61,4 +62,3 @@ class AirscanJobTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

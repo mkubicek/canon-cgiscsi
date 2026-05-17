@@ -1,19 +1,29 @@
-# AirScan Adapter Skeleton
+# AirScan Adapter
 
-This package is an offline-safe starting point for a virtual AirScan/eSCL
-adapter around `canon-cgiscsi`.
+This package is an offline-safe virtual AirScan/eSCL adapter around
+`canon-cgiscsi`.
 
-It intentionally does not talk to a scanner, publish Bonjour records, or start
-an HTTP listener. The current code covers the parts that can be tested without
-hardware:
+By default it uses a deterministic mock Canon backend. Live scanner access is
+only available when explicitly enabled with config or `CANON_CGISCSI_HOST`; unit
+tests do not open sockets to a scanner.
 
 - eSCL `ScannerCapabilities` and `ScannerStatus` XML generation.
 - Conservative `ScanSettings` parsing and validation.
 - A mock Canon backend that yields deterministic JPEG pages.
 - A single-job manager for page ordering, blank-page filtering, cancellation,
   and concurrency rejection.
+- A standard-library HTTP server for `/eSCL/ScannerCapabilities`,
+  `/eSCL/ScannerStatus`, `/eSCL/ScanJobs`, `NextDocument`, and DELETE.
+- Optional OCR inbox PDF side effect that reuses the harness PDF/OCR helpers.
+- `_uscan._tcp` TXT record generation and optional `zeroconf` publishing.
 
-The live backend, HTTP routes, mDNS publisher, OCR inbox pipeline, and admin
-health page should be added in later phases from the documents under
-`docs/airscan/`.
+Run the mock server:
 
+```sh
+python -m airscan_adapter.server --bind 127.0.0.1 --port 8080 --mock
+```
+
+Live scans require a TOML config with `scanner.safe_mode = false` and
+`scanner.allow_live_scans = true`, plus `scanner.host` or
+`CANON_CGISCSI_HOST`. The adapter does not use Canon GUI apps, installers, Wine,
+or vendor executables.

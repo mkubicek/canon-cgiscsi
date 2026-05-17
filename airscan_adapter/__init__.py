@@ -1,14 +1,15 @@
-"""Offline-safe AirScan/eSCL adapter skeleton for canon-cgiscsi."""
+"""AirScan/eSCL adapter for canon-cgiscsi."""
 
+from .config import AdapterConfig
 from .escl_models import ScanSettings, UnsupportedScanSetting
+from .jobs import AirscanJobManager
 from .mock_canon_backend import MockCanonBackend, ScannedPage
-from .server_skeleton import AirscanJobManager
 
 __all__ = [
+    "AdapterConfig",
     "AirscanJobManager",
     "MockCanonBackend",
     "ScanSettings",
     "ScannedPage",
     "UnsupportedScanSetting",
 ]
-

@@ -4,3 +4,7 @@ version = "0.0.0"
 description = "Offline-safe AirScan/eSCL adapter skeleton for canon-cgiscsi"
 requires-python = ">=3.11"
 
+[project.optional-dependencies]
+live = ["img2pdf", "Pillow"]
+mdns = ["zeroconf"]
+ocr = ["img2pdf", "Pillow", "ocrmypdf"]
