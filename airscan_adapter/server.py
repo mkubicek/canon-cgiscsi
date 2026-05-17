@@ -12,6 +12,8 @@ from typing import Any
 from urllib.parse import urlsplit
 from xml.etree.ElementTree import ParseError
 
+from defusedxml.common import DefusedXmlException
+
 from .canon_backend import CanonCgiscsiBackend
 from .config import AdapterConfig, EsclConfig, ScannerConfig
 from .escl_models import (
@@ -53,9 +55,14 @@ class AirscanHTTPServer(ThreadingHTTPServer):
 class AirscanRequestHandler(BaseHTTPRequestHandler):
     server: AirscanHTTPServer
 
+    @property
+    def _escl_root(self) -> str:
+        return f"/{self.server.config.escl.root_resource}"
+
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
-        if path == "/eSCL/ScannerCapabilities":
+        root = self._escl_root
+        if path == f"{root}/ScannerCapabilities":
             self._send_xml(
                 scanner_capabilities_xml(
                     model_name=self.server.config.scanner.model_name,
@@ -64,7 +71,7 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
                 )
             )
             return
-        if path == "/eSCL/ScannerStatus":
+        if path == f"{root}/ScannerStatus":
             state, adf_state = self.server.manager.scanner_state()
             self._send_xml(scanner_status_xml(state=state, adf_state=adf_state, jobs=self.server.manager.status_jobs()))
             return
@@ -102,7 +109,7 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
-        if path != "/eSCL/ScanJobs":
+        if path != f"{self._escl_root}/ScanJobs":
             self._send_error(HTTPStatus.NOT_FOUND, "unknown endpoint")
             return
         raw_length = self.headers.get("Content-Length")
@@ -129,6 +136,9 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
         except ParseError as exc:
             self._send_error(HTTPStatus.BAD_REQUEST, f"malformed XML: {exc}")
             return
+        except DefusedXmlException as exc:
+            self._send_error(HTTPStatus.BAD_REQUEST, f"forbidden XML construct: {exc}")
+            return
         except ScannerBusy as exc:
             self._send_error(
                 HTTPStatus.CONFLICT,
@@ -145,7 +155,7 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         path = urlsplit(self.path).path
-        prefix = "/eSCL/ScanJobs/"
+        prefix = f"{self._escl_root}/ScanJobs/"
         if not path.startswith(prefix) or "/" in path[len(prefix) :]:
             self._send_error(HTTPStatus.NOT_FOUND, "unknown endpoint")
             return
@@ -200,7 +210,7 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
         )
 
     def _job_id_for_suffix(self, path: str, suffix: str) -> str | None:
-        prefix = "/eSCL/ScanJobs/"
+        prefix = f"{self._escl_root}/ScanJobs/"
         if not path.startswith(prefix) or not path.endswith(suffix):
             return None
         job_id = path[len(prefix) : -len(suffix)]
@@ -289,8 +299,9 @@ def make_server(
     config = config or AdapterConfig()
     manager = AirscanJobManager(
         backend=backend or MockCanonBackend(),
-        base_path="/eSCL/ScanJobs",
+        base_path=f"/{config.escl.root_resource}/ScanJobs",
         ocr_writer=ocr_writer,
+        scan_defaults=config.scan_defaults,
     )
     return AirscanHTTPServer(
         (bind, port),

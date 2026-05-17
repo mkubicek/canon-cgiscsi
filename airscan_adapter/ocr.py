@@ -92,8 +92,12 @@ class OcrInboxWriter:
         if self.pdf_converter is not None:
             self.pdf_converter(jpeg_paths, image_pdf)
             return
+        # ScannedPage bytes are already in the canonical orientation (the live
+        # backend applies AIRSCAN_ROTATE_DEGREES at capture time; the mock
+        # backend produces upright bytes). Rotating again here would invert the
+        # PDF relative to the pages clients drain via NextDocument.
         scan_to_pdf = _import_harness_scan_to_pdf()
-        scan_to_pdf.jpeg_files_to_pdf(jpeg_paths, image_pdf, rotate_degrees=180)
+        scan_to_pdf.jpeg_files_to_pdf(jpeg_paths, image_pdf, rotate_degrees=0)
 
     def _run_ocr(self, image_pdf: Path, final_pdf: Path) -> None:
         if self.ocr_runner is not None:

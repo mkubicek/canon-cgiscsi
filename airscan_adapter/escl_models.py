@@ -173,8 +173,17 @@ def scanner_status_xml(
     return ET.tostring(root, encoding="utf-8", xml_declaration=True)
 
 
-def scan_settings_from_xml(data: bytes | str) -> ScanSettings:
-    """Parse the conservative MVP subset of an eSCL ScanSettings document."""
+def scan_settings_from_xml(
+    data: bytes | str,
+    *,
+    blank_page_detection_default: bool = True,
+) -> ScanSettings:
+    """Parse the conservative MVP subset of an eSCL ScanSettings document.
+
+    `blank_page_detection_default` controls the value used when the client did
+    not include a BlankPageDetection field. Callers that honor a config-level
+    override (e.g. `scan_defaults.blank_back_skip`) should pass it explicitly.
+    """
 
     if isinstance(data, str):
         data = data.encode("utf-8")
@@ -203,7 +212,7 @@ def scan_settings_from_xml(data: bytes | str) -> ScanSettings:
     duplex = _sides_to_duplex(_first_text(root, "Sides"), duplex)
     blank_page_detection = _text_bool(
         _first_text(root, "BlankPageDetection", "BlankPageDetectionAndRemoval"),
-        True,
+        blank_page_detection_default,
     )
 
     region = ScanRegion(

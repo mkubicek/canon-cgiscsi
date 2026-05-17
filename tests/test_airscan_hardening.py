@@ -1,14 +1,24 @@
 """Regression tests for the post-review hardening pass."""
 
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
 from contextlib import contextmanager
+from unittest import mock
 
+from airscan_adapter.config import AdapterConfig, EsclConfig, ScanDefaults
 from airscan_adapter.escl_models import UnsupportedScanSetting, scan_settings_from_xml
-from airscan_adapter.jobs import MAX_RETAINED_JOBS, AirscanJobManager, JobState
+from airscan_adapter.jobs import (
+    MAX_RETAINED_JOBS,
+    AirscanJobManager,
+    JobState,
+    ScannerBusy,
+)
 from airscan_adapter.mock_canon_backend import MockCanonBackend, ScannedPage
+from airscan_adapter.ocr import OcrInboxWriter
+from airscan_adapter.config import OcrConfig, PathConfig
 from airscan_adapter.server import (
     MAX_SCAN_SETTINGS_BYTES,
     _is_loopback_bind,
@@ -180,6 +190,173 @@ class LoopbackBindTests(unittest.TestCase):
         # main() returns exit code 2 when binding non-loopback without --allow-lan-bind.
         code = main(["--bind", "0.0.0.0", "--port", "0"])
         self.assertEqual(code, 2)
+
+
+class CancelRaceTests(unittest.TestCase):
+    def test_delete_does_not_release_active_slot_while_worker_runs(self):
+        # A backend whose worker thread keeps running past cancel for ~1s; the
+        # 2s join in delete_job is generous but real cleanup can outrun it.
+        start_evt = threading.Event()
+        release_evt = threading.Event()
+
+        class StuckBackend(MockCanonBackend):
+            def scan_pages(self_inner, settings, cancel_event):
+                start_evt.set()
+                # Ignore cancel_event: simulates a backend still draining bytes
+                # from the live scanner after a DELETE.
+                release_evt.wait(timeout=3.0)
+                yield ScannedPage(1)
+
+        manager = AirscanJobManager(backend=StuckBackend(pages=[ScannedPage(1)]))
+        first = manager.create_job(VALID_SCAN_SETTINGS)
+        self.assertTrue(start_evt.wait(timeout=2.0))
+
+        # DELETE while worker is still stuck inside scan_pages. The 2s join
+        # will time out because release_evt has not been set yet.
+        manager.delete_job(first.job_id)
+
+        # The worker is still alive — manager must keep refusing new jobs.
+        self.assertIsNotNone(manager.active_job_id)
+        with self.assertRaises(ScannerBusy):
+            manager.create_job(VALID_SCAN_SETTINGS)
+
+        # Once the worker exits, the slot frees up and a new job is accepted.
+        release_evt.set()
+        manager.wait_for_job(first.job_id, timeout=3.0)
+        self.assertIsNone(manager.active_job_id)
+        second = manager.create_job(VALID_SCAN_SETTINGS)
+        manager.wait_for_job(second.job_id, timeout=3.0)
+
+
+class DefusedXmlHttpTests(unittest.TestCase):
+    def test_dtd_payload_returns_400_not_closed_connection(self):
+        # defusedxml raises DefusedXmlException (not ParseError) on DTDs. The
+        # handler must convert that to a clean 400, not crash the thread.
+        bomb = (
+            '<?xml version="1.0"?>'
+            '<!DOCTYPE r [<!ENTITY lol "lol">]>'
+            '<scan:ScanSettings xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03">'
+            "<scan:ColorMode>Grayscale8</scan:ColorMode>"
+            "</scan:ScanSettings>"
+        )
+        with running_server() as base:
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                post(f"{base}/eSCL/ScanJobs", bomb)
+            self.assertEqual(ctx.exception.code, 400)
+
+
+@contextmanager
+def running_server_with_config(config):
+    server = make_server(backend=MockCanonBackend(), config=config)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        yield f"http://{host}:{port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2.0)
+
+
+class RootResourceRoutingTests(unittest.TestCase):
+    def test_custom_root_resource_is_honored(self):
+        config = AdapterConfig(escl=EsclConfig(root_resource="custom"))
+        with running_server_with_config(config) as base:
+            with urllib.request.urlopen(
+                f"{base}/custom/ScannerCapabilities", timeout=5
+            ) as response:
+                self.assertEqual(response.status, 200)
+            # Old hard-coded path must 404 once root_resource is overridden.
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                urllib.request.urlopen(
+                    f"{base}/eSCL/ScannerCapabilities", timeout=5
+                )
+            self.assertEqual(ctx.exception.code, 404)
+
+    def test_job_lifecycle_uses_custom_root(self):
+        config = AdapterConfig(escl=EsclConfig(root_resource="custom"))
+        with running_server_with_config(config) as base:
+            req = urllib.request.Request(
+                f"{base}/custom/ScanJobs",
+                data=VALID_SCAN_SETTINGS.encode("utf-8"),
+                method="POST",
+                headers={"Content-Type": "text/xml"},
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                self.assertEqual(response.status, 201)
+                location = response.headers["Location"]
+            # The location header must point inside the configured root.
+            self.assertTrue(location.startswith("/custom/ScanJobs/"))
+
+
+class OcrRotationTests(unittest.TestCase):
+    def test_default_pdf_conversion_does_not_double_rotate(self):
+        # When no pdf_converter is injected the writer falls back to the
+        # harness. Verify it is invoked with rotate_degrees=0 — the canonical
+        # bytes are already produced upright by the backends.
+        with mock.patch("airscan_adapter.ocr._import_harness_scan_to_pdf") as imp:
+            fake = mock.MagicMock()
+            imp.return_value = fake
+            import tempfile
+            from pathlib import Path as _Path
+
+            with tempfile.TemporaryDirectory() as tmp:
+                paths = PathConfig(scan_inbox=_Path(tmp), spool_dir=_Path(tmp))
+                writer = OcrInboxWriter(paths=paths, ocr=OcrConfig(enabled=False))
+                result = writer.write_job_pdf(
+                    "abcdef12", [ScannedPage(1, image_bytes=b"\xff\xd8\xff\xd9")]
+                )
+            self.assertTrue(result.succeeded)
+            fake.jpeg_files_to_pdf.assert_called_once()
+            _args, kwargs = fake.jpeg_files_to_pdf.call_args
+            self.assertEqual(kwargs.get("rotate_degrees"), 0)
+
+
+SCAN_SETTINGS_NO_BLANK_FIELD = """\
+<scan:ScanSettings xmlns:scan="http://schemas.hp.com/imaging/escl/2011/05/03"
+                   xmlns:pwg="http://www.pwg.org/schemas/2010/12/sm">
+  <pwg:InputSource>Feeder</pwg:InputSource>
+  <scan:DocumentFormat>image/jpeg</scan:DocumentFormat>
+  <scan:ColorMode>Grayscale8</scan:ColorMode>
+  <scan:XResolution>300</scan:XResolution>
+  <scan:YResolution>300</scan:YResolution>
+</scan:ScanSettings>
+"""
+
+
+class BlankPageDefaultTests(unittest.TestCase):
+    def test_parser_default_is_overridable(self):
+        settings_on = scan_settings_from_xml(
+            SCAN_SETTINGS_NO_BLANK_FIELD, blank_page_detection_default=True
+        )
+        settings_off = scan_settings_from_xml(
+            SCAN_SETTINGS_NO_BLANK_FIELD, blank_page_detection_default=False
+        )
+        self.assertTrue(settings_on.blank_page_detection)
+        self.assertFalse(settings_off.blank_page_detection)
+
+    def test_manager_honors_blank_back_skip_false(self):
+        defaults = ScanDefaults(blank_back_skip=False)
+        backend = MockCanonBackend(
+            pages=[ScannedPage(1, is_blank=True), ScannedPage(2, is_blank=False)]
+        )
+        manager = AirscanJobManager(backend=backend, scan_defaults=defaults)
+        job = manager.create_job(SCAN_SETTINGS_NO_BLANK_FIELD)
+        manager.wait_for_job(job.job_id, timeout=3.0)
+        # Blank page must be retained, not filtered out.
+        self.assertEqual(job.dropped_blank_pages, 0)
+        self.assertEqual(len(job.retained_pages), 2)
+
+    def test_manager_default_still_drops_blank_pages(self):
+        backend = MockCanonBackend(
+            pages=[ScannedPage(1, is_blank=True), ScannedPage(2, is_blank=False)]
+        )
+        manager = AirscanJobManager(backend=backend)
+        job = manager.create_job(SCAN_SETTINGS_NO_BLANK_FIELD)
+        manager.wait_for_job(job.job_id, timeout=3.0)
+        self.assertEqual(job.dropped_blank_pages, 1)
+        self.assertEqual(len(job.retained_pages), 1)
 
 
 if __name__ == "__main__":

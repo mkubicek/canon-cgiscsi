@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Protocol
 
+from .config import ScanDefaults
 from .escl_models import ScanSettings, scan_settings_from_xml
 from .mock_canon_backend import MockCanonBackend, ScannedPage
 
@@ -94,10 +95,12 @@ class AirscanJobManager:
         backend: PageBackend | None = None,
         base_path: str = "/eSCL/ScanJobs",
         ocr_writer: object | None = None,
+        scan_defaults: ScanDefaults | None = None,
     ) -> None:
         self.backend = backend or MockCanonBackend()
         self.base_path = base_path.rstrip("/")
         self.ocr_writer = ocr_writer
+        self.scan_defaults = scan_defaults or ScanDefaults()
         self._jobs: OrderedDict[str, AirscanJob] = OrderedDict()
         self._active_job_id: str | None = None
         self._lock = threading.Lock()
@@ -113,7 +116,10 @@ class AirscanJobManager:
             return self._active_job_id
 
     def create_job(self, settings_xml: bytes | str) -> AirscanJob:
-        settings = scan_settings_from_xml(settings_xml)
+        settings = scan_settings_from_xml(
+            settings_xml,
+            blank_page_detection_default=self.scan_defaults.blank_back_skip,
+        )
         with self._lock:
             if self._active_job_id is not None:
                 active = self._jobs[self._active_job_id]
@@ -190,14 +196,19 @@ class AirscanJobManager:
         if wait and job.worker is not None and is_active:
             job.worker.join(timeout=2.0)
 
+        worker_exited = job.worker is None or not job.worker.is_alive()
         with job.condition:
-            if job.state == JobState.CANCELING:
+            # Only mark CANCELED once the worker is actually gone. If the worker
+            # is still draining cleanup commands against the live scanner, leave
+            # the job in CANCELING (non-terminal) so the manager keeps refusing
+            # new jobs until the worker's finally block clears _active_job_id.
+            if worker_exited and job.state == JobState.CANCELING:
                 job.state = JobState.CANCELED
             job.deleted = True
             job.pages.clear()
             job.condition.notify_all()
-        self._release_image_bytes(job)
-        self._clear_active_if(job_id)
+        if worker_exited:
+            self._release_image_bytes(job)
 
     @staticmethod
     def _release_image_bytes(job: AirscanJob) -> None:
