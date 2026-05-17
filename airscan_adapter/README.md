@@ -17,11 +17,22 @@ tests do not open sockets to a scanner.
 - Optional OCR inbox PDF side effect that reuses the harness PDF/OCR helpers.
 - `_uscan._tcp` TXT record generation and optional `zeroconf` publishing.
 
+Install the runtime dep (required for safe XML parsing) before running tests
+or the server:
+
+```sh
+pip install defusedxml
+```
+
 Run the mock server:
 
 ```sh
 python -m airscan_adapter.server --bind 127.0.0.1 --port 8080 --mock
 ```
+
+The server binds loopback by default. Binding a non-loopback address requires
+`--allow-lan-bind` because the eSCL endpoint is unauthenticated. Request logs
+go to stderr (Python's `BaseHTTPRequestHandler` default).
 
 Live scans require a TOML config with `scanner.safe_mode = false` and
 `scanner.allow_live_scans = true`, plus `scanner.host` or

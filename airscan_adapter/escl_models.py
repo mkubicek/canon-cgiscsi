@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from xml.etree import ElementTree as ET
 
+from defusedxml.ElementTree import fromstring as defused_fromstring
+
 NS_PWG = "http://www.pwg.org/schemas/2010/12/sm"
 NS_SCAN = "http://schemas.hp.com/imaging/escl/2011/05/03"
 
@@ -176,7 +178,7 @@ def scan_settings_from_xml(data: bytes | str) -> ScanSettings:
 
     if isinstance(data, str):
         data = data.encode("utf-8")
-    root = ET.fromstring(data)
+    root = defused_fromstring(data)
 
     input_source = _first_text(root, "InputSource") or "Feeder"
     if input_source not in {"Feeder", "ADF", "Adf"}:

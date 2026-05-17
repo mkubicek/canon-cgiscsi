@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
+import sys
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlsplit
+from xml.etree.ElementTree import ParseError
 
 from .canon_backend import CanonCgiscsiBackend
 from .config import AdapterConfig, EsclConfig, ScannerConfig
@@ -29,6 +32,8 @@ from .jobs import (
 from .mdns import MdnsPublisher
 from .mock_canon_backend import MockCanonBackend
 from .ocr import OcrInboxWriter
+
+MAX_SCAN_SETTINGS_BYTES = 64 * 1024
 
 
 class AirscanHTTPServer(ThreadingHTTPServer):
@@ -100,13 +105,29 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
         if path != "/eSCL/ScanJobs":
             self._send_error(HTTPStatus.NOT_FOUND, "unknown endpoint")
             return
-        length = int(self.headers.get("Content-Length", "0"))
+        raw_length = self.headers.get("Content-Length")
+        if raw_length is None:
+            self._send_error(HTTPStatus.LENGTH_REQUIRED, "Content-Length required")
+            return
+        try:
+            length = int(raw_length)
+        except ValueError:
+            self._send_error(HTTPStatus.BAD_REQUEST, "invalid Content-Length")
+            return
+        if length < 0 or length > MAX_SCAN_SETTINGS_BYTES:
+            self._send_error(
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                f"ScanSettings body exceeds {MAX_SCAN_SETTINGS_BYTES} bytes",
+            )
+            return
         body = self.rfile.read(length)
-        print(f"{self.client_address[0]} POST body: {body.decode('utf-8', 'replace')}", flush=True)
         try:
             job = self.server.manager.create_job(body)
         except UnsupportedScanSetting as exc:
             self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
+            return
+        except ParseError as exc:
+            self._send_error(HTTPStatus.BAD_REQUEST, f"malformed XML: {exc}")
             return
         except ScannerBusy as exc:
             self._send_error(
@@ -135,9 +156,6 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
             self._send_error(HTTPStatus.NOT_FOUND, "unknown job")
             return
         self._send_bytes(b"", status=HTTPStatus.OK, content_type="text/plain")
-
-    def log_message(self, format: str, *args: Any) -> None:
-        print(f"{self.client_address[0]} - {format % args}", flush=True)
 
     def _next_document(self, job_id: str) -> None:
         try:
@@ -296,6 +314,11 @@ def main(argv: list[str] | None = None) -> int:
         help="with --live, allow paper-motion ScanJobs; host must still be explicit",
     )
     parser.add_argument("--mdns", action="store_true", help="publish _uscan._tcp with conservative TXT records")
+    parser.add_argument(
+        "--allow-lan-bind",
+        action="store_true",
+        help="acknowledge that eSCL is unauthenticated; required to bind a non-loopback address",
+    )
     args = parser.parse_args(argv)
 
     config = AdapterConfig.load(args.config)
@@ -307,6 +330,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     bind = args.bind or config.escl.bind
     port = args.port if args.port is not None else config.escl.port
+    if not _is_loopback_bind(bind) and not args.allow_lan_bind:
+        print(
+            f"refusing to bind {bind}: eSCL is unauthenticated; pass --allow-lan-bind to opt in",
+            file=sys.stderr,
+        )
+        return 2
     config = override_escl_endpoint(config, bind=bind, port=port)
     if args.live and not args.mock:
         backend = CanonCgiscsiBackend(config.scanner, config.scan_defaults)
@@ -333,6 +362,15 @@ def main(argv: list[str] | None = None) -> int:
             publisher.stop()
         server.server_close()
     return 0
+
+
+def _is_loopback_bind(bind: str) -> bool:
+    if bind == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(bind).is_loopback
+    except ValueError:
+        return False
 
 
 def override_live_config(
