@@ -1,0 +1,6 @@
+[project]
+name = "canon-cgiscsi-airscan-adapter"
+version = "0.0.0"
+description = "Offline-safe AirScan/eSCL adapter skeleton for canon-cgiscsi"
+requires-python = ">=3.11"
+
