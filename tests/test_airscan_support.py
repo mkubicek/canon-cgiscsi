@@ -19,7 +19,7 @@ from airscan_adapter.config import (
 from airscan_adapter.mdns import uscan_txt_records
 from airscan_adapter.mock_canon_backend import ScannedPage
 from airscan_adapter.ocr import OcrInboxWriter, copy_ocr_runner, copy_pdf_converter
-from airscan_adapter.server import override_escl_endpoint, override_live_config
+from airscan_adapter.server import override_escl_config, override_escl_endpoint, override_live_config, override_path_config
 
 
 class ConfigAndBackendTests(unittest.TestCase):
@@ -70,6 +70,28 @@ class ConfigAndBackendTests(unittest.TestCase):
         config = override_escl_endpoint(AdapterConfig(), bind="127.0.0.1", port=18082)
         self.assertEqual(config.escl.port, 18082)
         self.assertEqual(config.escl.admin_url, "http://127.0.0.1:18082/admin")
+
+    def test_cli_escl_overrides_allow_compose_only_deployment(self):
+        config = override_escl_config(
+            AdapterConfig(),
+            service_name="Canon Test AirScan",
+            uuid="urn:uuid:11111111-2222-4333-8444-555555555555",
+            admin_url="http://scanner-adapter.lan:8080/admin",
+            root_resource="/custom/",
+        )
+        self.assertEqual(config.escl.service_name, "Canon Test AirScan")
+        self.assertEqual(config.escl.uuid, "urn:uuid:11111111-2222-4333-8444-555555555555")
+        self.assertEqual(config.escl.admin_url, "http://scanner-adapter.lan:8080/admin")
+        self.assertEqual(config.escl.root_resource, "custom")
+
+    def test_cli_path_overrides_allow_container_paths(self):
+        config = override_path_config(
+            AdapterConfig(),
+            scan_inbox="/scans",
+            spool_dir="/tmp/canon-cgiscsi-airscan-spool",
+        )
+        self.assertEqual(config.paths.scan_inbox, Path("/scans"))
+        self.assertEqual(config.paths.spool_dir, Path("/tmp/canon-cgiscsi-airscan-spool"))
 
     def test_safe_health_does_not_require_scan_pdf_dependencies(self):
         class Response:

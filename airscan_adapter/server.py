@@ -9,6 +9,7 @@ import json
 import sys
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 from xml.etree.ElementTree import ParseError
@@ -16,7 +17,7 @@ from xml.etree.ElementTree import ParseError
 from defusedxml.common import DefusedXmlException
 
 from .canon_backend import CanonCgiscsiBackend
-from .config import AdapterConfig, EsclConfig, ScannerConfig, sample_config_toml, uuid_as_urn
+from .config import AdapterConfig, EsclConfig, PathConfig, ScannerConfig, sample_config_toml, uuid_as_urn
 from .escl_models import (
     UnsupportedScanSetting,
     error_xml,
@@ -328,6 +329,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host", help="explicit Canon cgiscsi scanner host or host:port")
     parser.add_argument("--bind")
     parser.add_argument("--port", type=int)
+    parser.add_argument("--service-name", help="mDNS service name to advertise")
+    parser.add_argument("--uuid", help="stable adapter UUID; accepts either UUID or urn:uuid:UUID")
+    parser.add_argument("--admin-url", help="AdminURI/adminurl advertised to clients")
+    parser.add_argument("--root-resource", help="eSCL root resource path, default eSCL")
+    parser.add_argument("--scan-inbox", help="directory for adapter-side PDF output")
+    parser.add_argument("--spool-dir", help="temporary spool directory for adapter-side PDF output")
     parser.add_argument("--mock", action="store_true", help="force deterministic mock backend")
     parser.add_argument("--live", action="store_true", help="enable live Canon backend from explicit config/env")
     parser.add_argument(
@@ -358,6 +365,20 @@ def main(argv: list[str] | None = None) -> int:
             config,
             host=args.host,
             allow_live_scans=args.allow_live_scans,
+        )
+    if args.service_name or args.uuid or args.admin_url or args.root_resource:
+        config = override_escl_config(
+            config,
+            service_name=args.service_name,
+            uuid=args.uuid,
+            admin_url=args.admin_url,
+            root_resource=args.root_resource,
+        )
+    if args.scan_inbox or args.spool_dir:
+        config = override_path_config(
+            config,
+            scan_inbox=args.scan_inbox,
+            spool_dir=args.spool_dir,
         )
     bind = args.bind or config.escl.bind
     port = args.port if args.port is not None else config.escl.port
@@ -424,6 +445,51 @@ def override_live_config(
         scan_defaults=config.scan_defaults,
         ocr=config.ocr,
         paths=config.paths,
+    )
+
+
+def override_escl_config(
+    config: AdapterConfig,
+    *,
+    service_name: str | None = None,
+    uuid: str | None = None,
+    admin_url: str | None = None,
+    root_resource: str | None = None,
+) -> AdapterConfig:
+    escl = EsclConfig(
+        bind=config.escl.bind,
+        port=config.escl.port,
+        service_name=service_name or config.escl.service_name,
+        uuid=uuid or config.escl.uuid,
+        admin_url=admin_url or config.escl.admin_url,
+        root_resource=(root_resource or config.escl.root_resource).strip("/"),
+    )
+    return AdapterConfig(
+        scanner=config.scanner,
+        escl=escl,
+        scan_defaults=config.scan_defaults,
+        ocr=config.ocr,
+        paths=config.paths,
+    )
+
+
+def override_path_config(
+    config: AdapterConfig,
+    *,
+    scan_inbox: str | None = None,
+    spool_dir: str | None = None,
+) -> AdapterConfig:
+    paths = PathConfig(
+        scan_inbox=Path(scan_inbox).expanduser() if scan_inbox else config.paths.scan_inbox,
+        spool_dir=Path(spool_dir).expanduser() if spool_dir else config.paths.spool_dir,
+        keep_intermediates=config.paths.keep_intermediates,
+    )
+    return AdapterConfig(
+        scanner=config.scanner,
+        escl=config.escl,
+        scan_defaults=config.scan_defaults,
+        ocr=config.ocr,
+        paths=paths,
     )
 
 

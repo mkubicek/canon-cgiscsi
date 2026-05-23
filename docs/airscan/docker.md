@@ -60,6 +60,10 @@ decision is visible.
 The container healthcheck verifies that the adapter HTTP process answers
 `/healthz`. It does not prove the physical scanner is reachable.
 
+To avoid a TOML file, pass the runtime settings as command arguments from
+Compose. Keep the scanner host, UUID, and advertised admin URL in environment
+or Compose variables rather than baking them into an image.
+
 Docker Desktop on macOS is useful for HTTP development, but its VM does not
 naturally publish Bonjour/mDNS onto the macOS host network in the way Image
 Capture expects. For macOS AirScan discovery, run the adapter or a small
