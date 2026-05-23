@@ -64,6 +64,58 @@ To avoid a TOML file, pass the runtime settings as command arguments from
 Compose. Keep the scanner host, UUID, and advertised admin URL in environment
 or Compose variables rather than baking them into an image.
 
+Example `docker-compose.yml` for a Linux host on the same LAN as the scanner:
+
+```yaml
+services:
+  airscan:
+    image: ghcr.io/mkubicek/canon-cgiscsi-airscan:0.1.0-experimental
+    container_name: canon-cgiscsi-airscan
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      CANON_CGISCSI_HOST: "scanner-host-or-ip"
+      ADAPTER_LAN_IP: "your-linux-host-lan-ip"
+      AIRSCAN_ADVERTISE_IP: "your-linux-host-lan-ip"
+      AIRSCAN_UUID: "urn:uuid:replace-with-generated-uuid"
+    volumes:
+      - "${HOME}/Scans:/scans"
+    command: >
+      sh -c 'python -m airscan_adapter.server
+      --live
+      --host "$$CANON_CGISCSI_HOST"
+      --allow-live-scans
+      --bind 0.0.0.0
+      --port 8080
+      --service-name "Canon DR-C225W AirScan"
+      --uuid "$$AIRSCAN_UUID"
+      --admin-url "http://$$ADAPTER_LAN_IP:8080/admin"
+      --scan-inbox /scans
+      --spool-dir /tmp/canon-cgiscsi-airscan-spool
+      --mdns
+      --allow-lan-bind'
+```
+
+For pull request validation, replace the image tag with the PR tag, for
+example `ghcr.io/mkubicek/canon-cgiscsi-airscan:pr-1`.
+
+Generate a stable UUID once per adapter instance:
+
+```sh
+python -c 'import uuid; print(f"urn:uuid:{uuid.uuid4()}")'
+```
+
+`ADAPTER_LAN_IP` is used in the advertised admin URL. `AIRSCAN_ADVERTISE_IP`
+is used by the mDNS publisher as the service address. Set both to the Linux
+host's reachable LAN IP when clients such as macOS Image Capture must discover
+and connect to the adapter. Without `AIRSCAN_ADVERTISE_IP`, mDNS may publish
+only the host name; that works only if every client can resolve that name to
+the correct LAN address.
+
+The doubled dollar signs in the Compose command are intentional. They stop
+Docker Compose from substituting the variables from the shell or a `.env` file,
+leaving the container shell to expand them at runtime.
+
 Docker Desktop on macOS is useful for HTTP development, but its VM does not
 naturally publish Bonjour/mDNS onto the macOS host network in the way Image
 Capture expects. For macOS AirScan discovery, run the adapter or a small

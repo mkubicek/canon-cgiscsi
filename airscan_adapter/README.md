@@ -59,3 +59,12 @@ python -m airscan_adapter.server --live --host <scanner-host-or-ip> \
 
 The adapter does not use Canon GUI apps, installers, Wine, or vendor
 executables.
+
+For Docker/Compose deployments that publish `_uscan._tcp` to other LAN
+clients, set both the advertised admin URL and mDNS address. The CLI flag
+`--admin-url "http://<adapter-lan-ip>:8080/admin"` controls the URL in eSCL
+capabilities and TXT records. The environment variable
+`AIRSCAN_ADVERTISE_IP=<adapter-lan-ip>` controls the IP address attached to the
+mDNS service record. This is important on multi-interface Linux hosts and host
+network containers, where the default host name may not resolve to the address
+macOS Image Capture should open.
