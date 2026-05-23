@@ -1,15 +1,30 @@
 FROM python:3.12-slim
 
+LABEL org.opencontainers.image.source="https://github.com/mkubicek/canon-cgiscsi"
+LABEL org.opencontainers.image.description="Experimental AirScan/eSCL adapter for Canon cgiscsi imageFORMULA scanners"
+LABEL org.opencontainers.image.licenses="MIT"
+
 WORKDIR /app
 
-RUN python -m pip install --no-cache-dir defusedxml img2pdf pillow zeroconf
+COPY requirements.airscan.txt ./requirements.airscan.txt
+RUN python -m pip install --no-cache-dir -r requirements.airscan.txt
 
 COPY airscan_adapter ./airscan_adapter
 COPY harness ./harness
+
+RUN useradd --create-home --uid 10001 airscan \
+    && mkdir -p /scans /tmp/canon-cgiscsi-airscan-spool \
+    && chown -R airscan:airscan /scans /tmp/canon-cgiscsi-airscan-spool /app \
+    && chmod 1777 /tmp/canon-cgiscsi-airscan-spool
+
+USER airscan
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 VOLUME ["/scans"]
 
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3).read()"
+
 CMD ["python", "-m", "airscan_adapter.server", "--mock", "--bind", "0.0.0.0", "--port", "8080", "--allow-lan-bind"]

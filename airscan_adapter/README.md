@@ -32,7 +32,20 @@ python -m airscan_adapter.server --bind 127.0.0.1 --port 8080 --mock
 
 The server binds loopback by default. Binding a non-loopback address requires
 `--allow-lan-bind` because the eSCL endpoint is unauthenticated. Request logs
-go to stderr (Python's `BaseHTTPRequestHandler` default).
+go to stderr (Python's `BaseHTTPRequestHandler` default). On non-loopback
+binds, `/healthz` and `/admin` avoid returning the configured scanner host or
+detailed backend error strings.
+That redaction is based on the adapter bind address; a reverse proxy in front
+of a loopback-bound adapter is outside this simple policy.
+
+Generate a starter config with a stable non-zero eSCL UUID for native runs:
+
+```sh
+python -m airscan_adapter.server --print-sample-config
+```
+
+Use the generated `escl.uuid` value for live/mDNS deployments. The built-in
+default UUID is only for mock and development runs.
 
 Live scans require a TOML config with `scanner.safe_mode = false` and
 `scanner.allow_live_scans = true`, plus `scanner.host` or

@@ -1,5 +1,6 @@
 import os
 import tempfile
+import tomllib
 import unittest
 import urllib.request
 from pathlib import Path
@@ -8,10 +9,12 @@ from unittest.mock import patch
 from airscan_adapter.canon_backend import CanonCgiscsiBackend
 from airscan_adapter.config import (
     AdapterConfig,
+    EsclConfig,
     OcrConfig,
     PathConfig,
     ScannerConfig,
     config_from_mapping,
+    sample_config_toml,
 )
 from airscan_adapter.mdns import uscan_txt_records
 from airscan_adapter.mock_canon_backend import ScannedPage
@@ -20,6 +23,15 @@ from airscan_adapter.server import override_escl_endpoint, override_live_config
 
 
 class ConfigAndBackendTests(unittest.TestCase):
+    def test_sample_config_uses_stable_non_zero_uuid_placeholder(self):
+        text = sample_config_toml("urn:uuid:11111111-2222-4333-8444-555555555555")
+        config = config_from_mapping(tomllib.loads(text))
+
+        self.assertEqual(config.escl.uuid, "urn:uuid:11111111-2222-4333-8444-555555555555")
+        self.assertEqual(config.scanner.host, "scanner-host-or-ip")
+        self.assertTrue(config.scanner.safe_mode)
+        self.assertFalse(config.scanner.allow_live_scans)
+
     def test_config_reads_scanner_host_from_environment(self):
         with patch.dict(os.environ, {"CANON_CGISCSI_HOST": "scanner.local"}, clear=False):
             config = config_from_mapping({})
@@ -95,6 +107,12 @@ class MdnsTests(unittest.TestCase):
         self.assertEqual(records["duplex"], "T")
         self.assertEqual(records["cs"], "grayscale")
         self.assertIn("UUID", records)
+
+    def test_uscan_txt_records_strip_uuid_urn_prefix(self):
+        records = uscan_txt_records(
+            escl=EsclConfig(uuid="urn:uuid:11111111-2222-4333-8444-555555555555")
+        )
+        self.assertEqual(records["UUID"], "11111111-2222-4333-8444-555555555555")
 
 
 class OcrInboxTests(unittest.TestCase):

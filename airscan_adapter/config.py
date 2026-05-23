@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import tomllib
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,7 @@ from typing import Any
 DEFAULT_MODEL_NAME = "Canon imageFORMULA DR-C225W II AirScan Adapter"
 DEFAULT_SERVICE_NAME = "Canon DR-C225W AirScan"
 DEFAULT_UUID = "00000000-0000-4000-8000-000000000000"
+UUID_URN_PREFIX = "urn:uuid:"
 
 
 @dataclass(frozen=True)
@@ -201,3 +203,52 @@ def config_from_mapping(data: dict[str, Any]) -> AdapterConfig:
         ocr=ocr,
         paths=paths,
     )
+
+
+def uuid_as_urn(uuid_value: str) -> str:
+    if uuid_value.startswith(UUID_URN_PREFIX):
+        return uuid_value
+    return f"{UUID_URN_PREFIX}{uuid_value}"
+
+
+def uuid_for_mdns(uuid_value: str) -> str:
+    if uuid_value.startswith(UUID_URN_PREFIX):
+        return uuid_value[len(UUID_URN_PREFIX) :]
+    return uuid_value
+
+
+def sample_config_toml(uuid_value: str | None = None) -> str:
+    """Return a starter AirScan config with a stable non-zero UUID."""
+
+    uuid_value = uuid_value or f"urn:uuid:{uuid.uuid4()}"
+    return f"""\
+[scanner]
+host = "scanner-host-or-ip"
+safe_mode = true
+allow_live_scans = false
+
+[escl]
+bind = "127.0.0.1"
+port = 8080
+service_name = "Canon DR-C225W AirScan"
+uuid = "{uuid_value}"
+admin_url = "http://127.0.0.1:8080/admin"
+root_resource = "eSCL"
+
+[scan_defaults]
+paper = "a4"
+dpi = 300
+duplex = true
+blank_back_skip = true
+max_sheets = 100
+max_chunks = 10
+max_bytes_per_sheet = 67108864
+
+[ocr]
+enabled = false
+
+[paths]
+scan_inbox = "~/Scans/Canon DR-C225W"
+spool_dir = "~/Library/Caches/canon-cgiscsi-airscan/spool"
+keep_intermediates = false
+"""

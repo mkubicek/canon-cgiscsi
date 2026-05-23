@@ -68,7 +68,7 @@ allow_live_scans = true
 bind = "0.0.0.0"
 port = 8080
 service_name = "Canon DR-C225W AirScan"
-uuid = "00000000-0000-4000-8000-000000000000"
+uuid = "urn:uuid:11111111-2222-4333-8444-555555555555"
 admin_url = "http://adapter.local:8080/admin"
 tls = false
 

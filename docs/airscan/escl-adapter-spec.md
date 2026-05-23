@@ -63,6 +63,9 @@ mopria-certified-scan=1.2
 
 V1 should not advertise `application/pdf` in `pdl` unless PDF `NextDocument`
 behavior has been manually validated with macOS Image Capture and Preview.
+Use the same stable adapter UUID in XML and mDNS, but format it for each
+surface: `urn:uuid:<uuid>` in eSCL XML and bare `<uuid>` in the mDNS TXT
+`UUID` value.
 
 ## HTTP Endpoints
 
@@ -117,7 +120,7 @@ V1 minimal capability set:
   <pwg:Version>2.1</pwg:Version>
   <pwg:MakeAndModel>Canon imageFORMULA DR-C225W II AirScan Adapter</pwg:MakeAndModel>
   <pwg:Manufacturer>Canon</pwg:Manufacturer>
-  <scan:UUID>00000000-0000-4000-8000-000000000000</scan:UUID>
+  <scan:UUID>urn:uuid:11111111-2222-4333-8444-555555555555</scan:UUID>
   <scan:AdminURI>http://adapter.local:8080/admin</scan:AdminURI>
   <scan:Adf>
     <scan:AdfSimplexInputCaps>
@@ -321,6 +324,9 @@ Admin page fields:
 }
 ```
 
+When bound to a non-loopback address, `/healthz` should omit private scanner
+host and detailed backend error fields by default.
+
 ## Safety Rules For Implementation
 
 1. No live scanner traffic in tests.
@@ -331,4 +337,3 @@ Admin page fields:
 6. DELETE/cancel must be best effort and bounded by timeouts.
 7. All live command paths must log high-level commands, not raw proprietary data or private scans.
 8. Spool cleanup must remove raw streams unless configured for debugging.
-

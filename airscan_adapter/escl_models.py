@@ -18,6 +18,9 @@ NS_SCAN = "http://schemas.hp.com/imaging/escl/2011/05/03"
 ET.register_namespace("pwg", NS_PWG)
 ET.register_namespace("scan", NS_SCAN)
 
+ADF_MAX_WIDTH = 2550
+ADF_MAX_HEIGHT = 4200
+
 
 class UnsupportedScanSetting(ValueError):
     """Raised when a client asks for a setting the MVP profile does not expose."""
@@ -103,10 +106,10 @@ def _add_text(parent: ET.Element, namespace: str, tag: str, value: str | int) ->
 
 def scanner_capabilities_xml(
     model_name: str = "Canon DR-C225W AirScan",
-    uuid: str = "urn:uuid:canon-cgiscsi-airscan",
+    uuid: str = "urn:uuid:11111111-2222-4333-8444-555555555555",
     admin_uri: str = "http://localhost:8765/admin",
-    max_width: int = 2550,
-    max_height: int = 4200,
+    max_width: int = ADF_MAX_WIDTH,
+    max_height: int = ADF_MAX_HEIGHT,
 ) -> bytes:
     """Return an ADF-only MVP capability document.
 
@@ -177,6 +180,8 @@ def scan_settings_from_xml(
     data: bytes | str,
     *,
     blank_page_detection_default: bool = True,
+    max_width: int = ADF_MAX_WIDTH,
+    max_height: int = ADF_MAX_HEIGHT,
 ) -> ScanSettings:
     """Parse the conservative MVP subset of an eSCL ScanSettings document.
 
@@ -225,6 +230,10 @@ def scan_settings_from_xml(
         raise UnsupportedScanSetting("scan region width and height must be positive")
     if region.x_offset < 0 or region.y_offset < 0:
         raise UnsupportedScanSetting("scan region offsets must be non-negative")
+    if region.x_offset + region.width > max_width:
+        raise UnsupportedScanSetting("scan region exceeds maximum page width")
+    if region.y_offset + region.height > max_height:
+        raise UnsupportedScanSetting("scan region exceeds maximum page height")
 
     return ScanSettings(
         input_source="Feeder",

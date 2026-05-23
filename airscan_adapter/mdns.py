@@ -6,7 +6,7 @@ import os
 import socket
 from dataclasses import dataclass
 
-from .config import EsclConfig, ScannerConfig
+from .config import EsclConfig, ScannerConfig, uuid_for_mdns
 
 
 USCAN_SERVICE_TYPE = "_uscan._tcp.local."
@@ -29,7 +29,7 @@ def uscan_txt_records(
         "duplex": "T",
         "cs": "grayscale",
         "adminurl": escl.admin_url,
-        "UUID": escl.uuid,
+        "UUID": uuid_for_mdns(escl.uuid),
         "mopria-certified-scan": "1.2",
     }
 

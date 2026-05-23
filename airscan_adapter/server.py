@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import ipaddress
 import json
 import sys
@@ -15,7 +16,7 @@ from xml.etree.ElementTree import ParseError
 from defusedxml.common import DefusedXmlException
 
 from .canon_backend import CanonCgiscsiBackend
-from .config import AdapterConfig, EsclConfig, ScannerConfig
+from .config import AdapterConfig, EsclConfig, ScannerConfig, sample_config_toml, uuid_as_urn
 from .escl_models import (
     UnsupportedScanSetting,
     error_xml,
@@ -66,7 +67,7 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
             self._send_xml(
                 scanner_capabilities_xml(
                     model_name=self.server.config.scanner.model_name,
-                    uuid=self.server.config.escl.uuid,
+                    uuid=uuid_as_urn(self.server.config.escl.uuid),
                     admin_uri=self.server.config.escl.admin_url,
                 )
             )
@@ -84,15 +85,19 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
                 health = safe_health()
                 backend_state = health.state
                 backend_error = health.message
-            self._send_json(
-                {
-                    "adapter": "ok",
-                    "backend": backend_state,
-                    "scanner_host": self.server.config.scanner.host,
-                    "active_job": active_job,
-                    "last_error": backend_error,
-                }
-            )
+            payload: dict[str, Any] = {
+                "adapter": "ok",
+                "backend": backend_state,
+            }
+            if self._show_local_details():
+                payload.update(
+                    {
+                        "scanner_host": self.server.config.scanner.host,
+                        "active_job": active_job,
+                        "last_error": backend_error,
+                    }
+                )
+            self._send_json(payload)
             return
         if path == "/admin":
             self._send_html(self._admin_html())
@@ -269,14 +274,20 @@ class AirscanRequestHandler(BaseHTTPRequestHandler):
         config = self.server.config
         active_job = self.server.manager.active_job_id or "none"
         scanner_host = config.scanner.host or "mock/offline"
+        if not self._show_local_details():
+            scanner_host = "redacted on LAN bind"
+            active_job = "redacted on LAN bind"
         return (
             "<!doctype html><html><head><title>Canon AirScan Adapter</title></head>"
             "<body><h1>Canon AirScan Adapter</h1>"
-            f"<p>Scanner host: {scanner_host}</p>"
-            f"<p>Active job: {active_job}</p>"
-            f"<p>eSCL: /{config.escl.root_resource}</p>"
+            f"<p>Scanner host: {html.escape(scanner_host)}</p>"
+            f"<p>Active job: {html.escape(active_job)}</p>"
+            f"<p>eSCL: /{html.escape(config.escl.root_resource)}</p>"
             "</body></html>"
         )
+
+    def _show_local_details(self) -> bool:
+        return _is_loopback_bind(str(self.server.server_address[0]))
 
 
 def job_created_xml(location: str) -> bytes:
@@ -320,6 +331,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--mock", action="store_true", help="force deterministic mock backend")
     parser.add_argument("--live", action="store_true", help="enable live Canon backend from explicit config/env")
     parser.add_argument(
+        "--print-sample-config",
+        action="store_true",
+        help="print a starter config with a freshly generated eSCL UUID and exit",
+    )
+    parser.add_argument(
         "--allow-live-scans",
         action="store_true",
         help="with --live, allow paper-motion ScanJobs; host must still be explicit",
@@ -331,6 +347,10 @@ def main(argv: list[str] | None = None) -> int:
         help="acknowledge that eSCL is unauthenticated; required to bind a non-loopback address",
     )
     args = parser.parse_args(argv)
+
+    if args.print_sample_config:
+        print(sample_config_toml(), end="")
+        return 0
 
     config = AdapterConfig.load(args.config)
     if args.host or args.allow_live_scans:

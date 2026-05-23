@@ -17,11 +17,11 @@ This repository is not affiliated with Canon.
 
 ## Current Status
 
-Tested live:
+Live-tested hardware:
 
-| Model | Firmware / revision | Result |
-| --- | --- | --- |
-| Canon imageFORMULA DR-C225W II | `1.06` / `20140609` | Discovery, INQUIRY, status, control commands, ADF duplex JPEG capture, blank-back filtering, PDF assembly, and OCRmyPDF searchable output work. |
+| Model | Firmware/revision | cgiscsi health | ADF simplex | ADF duplex | AirScan adapter | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| Canon imageFORMULA DR-C225W II | `1.06` / `20140609` | yes | yes | yes | yes, experimental | Live-tested by maintainer. Discovery, status/control commands, JPEG capture, blank-back filtering, PDF assembly, and OCRmyPDF searchable output work. |
 
 Likely related but untested:
 
@@ -29,6 +29,8 @@ Likely related but untested:
   `/cgi-bin/cgiscsi`.
 - Other Canon DR network models may need per-model adjustments for scan-mode
   pages, read-kind fields, or vendor-specific payloads.
+- Community reports are welcome, but unlisted models should be treated as
+  untested until someone verifies discovery, safe health checks, and scanning.
 
 Not supported:
 
@@ -122,6 +124,8 @@ uv run python scan_to_pdf.py --ocr-clean --ocr-deskew ...
 ```
 
 See [harness/README.md](harness/README.md) for the full command catalog.
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for practical recovery steps and
+AirScan adapter checks.
 
 ## Protocol Documentation
 

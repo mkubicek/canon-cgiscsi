@@ -1,5 +1,6 @@
 """Regression tests for the post-review hardening pass."""
 
+import json
 import threading
 import time
 import unittest
@@ -8,7 +9,7 @@ import urllib.request
 from contextlib import contextmanager
 from unittest import mock
 
-from airscan_adapter.config import AdapterConfig, EsclConfig, ScanDefaults
+from airscan_adapter.config import AdapterConfig, EsclConfig, ScanDefaults, ScannerConfig
 from airscan_adapter.escl_models import UnsupportedScanSetting, scan_settings_from_xml
 from airscan_adapter.jobs import (
     MAX_RETAINED_JOBS,
@@ -63,6 +64,25 @@ def post(url, body, *, content_length=None, content_type="text/xml"):
         return response.status, dict(response.headers), response.read()
 
 
+def get(url):
+    with urllib.request.urlopen(url, timeout=5) as response:
+        return response.status, dict(response.headers), response.read()
+
+
+def scan_settings_with_region(width, height, x_offset=0, y_offset=0):
+    region = f"""\
+  <scan:ScanRegions>
+    <scan:ScanRegion>
+      <scan:XOffset>{x_offset}</scan:XOffset>
+      <scan:YOffset>{y_offset}</scan:YOffset>
+      <scan:Width>{width}</scan:Width>
+      <scan:Height>{height}</scan:Height>
+    </scan:ScanRegion>
+  </scan:ScanRegions>
+"""
+    return VALID_SCAN_SETTINGS.replace("</scan:ScanSettings>", region + "</scan:ScanSettings>")
+
+
 class XmlHardeningTests(unittest.TestCase):
     def test_billion_laughs_xml_is_rejected(self):
         bomb = (
@@ -112,6 +132,15 @@ class HttpHardeningTests(unittest.TestCase):
                 post(
                     f"{base}/eSCL/ScanJobs",
                     VALID_SCAN_SETTINGS.replace("Grayscale8", "RGB24"),
+                )
+            self.assertEqual(ctx.exception.code, 400)
+
+    def test_oversized_scan_region_returns_400(self):
+        with running_server() as base:
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                post(
+                    f"{base}/eSCL/ScanJobs",
+                    scan_settings_with_region(2551, 3508),
                 )
             self.assertEqual(ctx.exception.code, 400)
 
@@ -192,6 +221,47 @@ class LoopbackBindTests(unittest.TestCase):
         self.assertEqual(code, 2)
 
 
+class LanRedactionTests(unittest.TestCase):
+    def test_healthz_omits_private_details_on_non_loopback_bind(self):
+        class BackendWithHealth(MockCanonBackend):
+            def safe_health(self):
+                class Health:
+                    state = "unreachable"
+                    message = "failed to reach scanner.lan.example"
+
+                return Health()
+
+        config = AdapterConfig(scanner=ScannerConfig(host="scanner.lan.example"))
+        with running_bound_server("0.0.0.0", config, backend=BackendWithHealth()) as base:
+            status, _headers, body = get(f"{base}/healthz")
+
+        self.assertEqual(status, 200)
+        payload = json.loads(body.decode("utf-8"))
+        self.assertEqual(payload, {"adapter": "ok", "backend": "unreachable"})
+
+    def test_admin_redacts_scanner_host_on_non_loopback_bind(self):
+        config = AdapterConfig(scanner=ScannerConfig(host="scanner.lan.example"))
+        with running_bound_server("0.0.0.0", config) as base:
+            status, _headers, body = get(f"{base}/admin")
+
+        self.assertEqual(status, 200)
+        text = body.decode("utf-8")
+        self.assertNotIn("scanner.lan.example", text)
+        self.assertIn("redacted on LAN bind", text)
+        self.assertNotIn("Active job: none", text)
+
+    def test_healthz_keeps_details_on_loopback_bind(self):
+        config = AdapterConfig(scanner=ScannerConfig(host="scanner.local"))
+        with running_bound_server("127.0.0.1", config) as base:
+            status, _headers, body = get(f"{base}/healthz")
+
+        self.assertEqual(status, 200)
+        payload = json.loads(body.decode("utf-8"))
+        self.assertEqual(payload["scanner_host"], "scanner.local")
+        self.assertIn("active_job", payload)
+        self.assertIn("last_error", payload)
+
+
 class CancelRaceTests(unittest.TestCase):
     def test_delete_does_not_release_active_slot_while_worker_runs(self):
         # A backend whose worker thread keeps running past cancel for ~1s; the
@@ -253,6 +323,20 @@ def running_server_with_config(config):
     try:
         host, port = server.server_address
         yield f"http://{host}:{port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2.0)
+
+
+@contextmanager
+def running_bound_server(bind, config, backend=None):
+    server = make_server(bind=bind, backend=backend or MockCanonBackend(), config=config)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        _host, port = server.server_address
+        yield f"http://127.0.0.1:{port}"
     finally:
         server.shutdown()
         server.server_close()

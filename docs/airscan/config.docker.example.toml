@@ -1,0 +1,29 @@
+[scanner]
+host = "scanner-host-or-ip"
+safe_mode = false
+allow_live_scans = true
+
+[escl]
+bind = "0.0.0.0"
+port = 8080
+service_name = "Canon DR-C225W AirScan"
+uuid = "urn:uuid:REPLACE-WITH-A-GENERATED-UUID"
+admin_url = "http://127.0.0.1:8080/admin"
+root_resource = "eSCL"
+
+[scan_defaults]
+paper = "a4"
+dpi = 300
+duplex = true
+blank_back_skip = true
+max_sheets = 100
+max_chunks = 10
+max_bytes_per_sheet = 67108864
+
+[ocr]
+enabled = false
+
+[paths]
+scan_inbox = "/scans"
+spool_dir = "/tmp/canon-cgiscsi-airscan-spool"
+keep_intermediates = false

@@ -2,6 +2,8 @@ import unittest
 from xml.etree import ElementTree as ET
 
 from airscan_adapter.escl_models import (
+    ADF_MAX_HEIGHT,
+    ADF_MAX_WIDTH,
     UnsupportedScanSetting,
     scan_settings_from_xml,
     scanner_capabilities_xml,
@@ -20,6 +22,20 @@ SCAN_SETTINGS = """\
   <scan:BlankPageDetectionAndRemoval>false</scan:BlankPageDetectionAndRemoval>
 </scan:ScanSettings>
 """
+
+
+def scan_settings_with_region(width, height, x_offset=0, y_offset=0):
+    region = f"""\
+  <scan:ScanRegions>
+    <scan:ScanRegion>
+      <scan:XOffset>{x_offset}</scan:XOffset>
+      <scan:YOffset>{y_offset}</scan:YOffset>
+      <scan:Width>{width}</scan:Width>
+      <scan:Height>{height}</scan:Height>
+    </scan:ScanRegion>
+  </scan:ScanRegions>
+"""
+    return SCAN_SETTINGS.replace("</scan:ScanSettings>", region + "</scan:ScanSettings>")
 
 
 class EsclModelTests(unittest.TestCase):
@@ -67,6 +83,24 @@ class EsclModelTests(unittest.TestCase):
 
     def test_reject_unsupported_resolution(self):
         xml = SCAN_SETTINGS.replace("<scan:XResolution>300", "<scan:XResolution>600")
+
+        with self.assertRaises(UnsupportedScanSetting):
+            scan_settings_from_xml(xml)
+
+    def test_reject_scan_region_wider_than_advertised_adf(self):
+        xml = scan_settings_with_region(ADF_MAX_WIDTH + 1, 3508)
+
+        with self.assertRaises(UnsupportedScanSetting):
+            scan_settings_from_xml(xml)
+
+    def test_reject_scan_region_taller_than_advertised_adf(self):
+        xml = scan_settings_with_region(2480, ADF_MAX_HEIGHT + 1)
+
+        with self.assertRaises(UnsupportedScanSetting):
+            scan_settings_from_xml(xml)
+
+    def test_reject_scan_region_offset_outside_advertised_adf(self):
+        xml = scan_settings_with_region(2480, 3508, x_offset=100)
 
         with self.assertRaises(UnsupportedScanSetting):
             scan_settings_from_xml(xml)
