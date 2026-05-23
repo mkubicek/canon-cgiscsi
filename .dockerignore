@@ -1,0 +1,42 @@
+# Mirror .gitignore so docker build does not bake in local/private files.
+.git/
+.gitignore
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Canon copyrighted driver artifacts.
+downloads/
+extracted/
+
+# Third-party source/cache snapshots.
+references-cache/
+
+# Local scanner captures may contain personal documents and OCR text.
+harness/captures/
+harness/tessdata/
+
+# Scratch and generated outputs.
+tmp/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.bin
+
+# Tests and tooling are not needed inside the runtime image.
+tests/
+tools/
+notes/
+docs/

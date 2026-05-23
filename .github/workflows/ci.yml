@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install offline test dependencies
+        run: python -m pip install --upgrade pip -r requirements.airscan.txt
+
+      - name: Run AirScan unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Compile AirScan modules
+        run: python -m py_compile airscan_adapter/*.py
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Check harness lockfile
+        working-directory: harness
+        run: uv lock --check
+
+      - name: Run harness unit tests
+        working-directory: harness
+        run: uv run python -m unittest discover -s tests -v
+
+      - name: Compile harness modules
+        working-directory: harness
+        run: uv run python -m py_compile cgiscsi.py commands.py discover.py mock_cgiscsi.py scan_to_pdf.py
+
+      - name: Build AirScan Docker image
+        run: docker build -f Dockerfile.airscan .
